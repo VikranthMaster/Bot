@@ -1,23 +1,26 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, timers
 from discord import DMChannel
 import os
-import json
 import asyncio
 import sqlite3
 import math 
 import random
+import time
+import datetime
+import requests
 
 
-client = commands.Bot(command_prefix = ">")
+client = commands.Bot(command_prefix = ">",intents=discord.Intents.all())
 
 cmds = ["Duh, Stop talking to me and get back to work.","Who the hell summoned me?! I am sleeping !!","Bruh, what do you want ?!","Hey sorry i was so mean !", "Heya whats up ?", "Hey handsome !", "Yo! Dude sup"]
+hello = ["hello","hi","hey","Hello","Hi","Hey"]
 
 client.remove_command("help")
 
 @client.event
 async def on_ready():
-  db = sqlite3.connect('main.sqlite')
+  db = sqlite3.connect('test.sqlite')
   cursor = db.cursor()
   cursor.execute('''
     CREATE TABLE IF NOT EXISTS main(
@@ -36,6 +39,16 @@ async def on_ready():
     )
   ''')
 
+  db = sqlite3.connect("forest.sqlite")
+  cursor = db.cursor()
+  cursor.execute('''
+    CREATE TABLE IF NOT EXISTS forest(
+      guild_id TEXT,
+      user_id TEXT,
+      points TEXT
+    )
+  ''')
+  print("Database loaded")
   print("Bot is ready !")
   await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=">help"))
 
@@ -52,14 +65,23 @@ async def create(ctx, code, stime, duration):
         )   
     try:
         if len(code) == 7 and len(stime) < 6 and len(duration) < 4:
-          await ctx.send(discord.utils.get(ctx.guild.roles, name="Forest").mention)
+          # await ctx.send(discord.utils.get(ctx.guild.roles, name="Forest").mention)
           embed.add_field(name = "Hosted by: ", value = ctx.message.author.mention, inline = False)
           embed.add_field(name = "Code: ", value = code, inline = False)
           embed.add_field(name = "Starting Time: ", value = stime, inline = False)
           embed.add_field(name = "Duration: ", value = duration, inline = False)
           embed.add_field(name = "Link:", value = f"https://forestapp.cc/join-room?token={code}", inline = False)
-          msg = await ctx.send(embed=embed)
-          msg.add_reaction(":evergreen_tree:")
+          msg = await ctx.channel.send(embed=embed)
+          await msg.add_reaction("🌲")
+
+          # channel = client.get_channel(ctx.)
+          # message = await channel.fetch_message(msg)
+          # users = set()
+          # for reaction in message.reactions:
+          #   async for user in reaction.users():
+          #     users.add(user)
+          # print(f"users: {', '.join(user.name for user in users)}")
+          
 
           user = await client.fetch_user(ctx.message.author.id)
           await DMChannel.send(user, f"Hello there, You have hosted a forest session at **{stime}** and code is **{code}** of **{duration}**mins")
@@ -81,7 +103,7 @@ async def ping(ctx):
 @client.command()
 async def welcome(ctx, channel:discord.TextChannel):
   if ctx.message.author.guild_permissions.manage_messages:
-    db = sqlite3.connect('main.sqlite')
+    db = sqlite3.connect('test.sqlite')
     cursor = db.cursor()
     cursor.execute(f"SELECT channel_id FROM main WHERE guild_id = {ctx.guild.id}")
     result = cursor.fetchone()
@@ -105,7 +127,7 @@ async def on_message(message):
     await message.channel.send(f"Awww...please use me..pls {message.author.mention}")
   if client.user.mentioned_in(message):
     await message.channel.send(random.choice(cmds))
-  db = sqlite3.connect('main.sqlite') 
+  db = sqlite3.connect('test.sqlite') 
   cursor = db.cursor()
   cursor.execute(f"SELECT user_id FROM levels WHERE guild_id = '{message.guild.id}' and user_id = '{message.author.id}'")
   result = cursor.fetchone()
@@ -150,7 +172,7 @@ async def on_message(message):
 @client.command()
 async def rank(ctx,user:discord.User=None):
   if user is not None:
-    db = sqlite3.connect('main.sqlite') 
+    db = sqlite3.connect('test.sqlite') 
     cursor = db.cursor()
     cursor.execute(f"SELECT user_id, exp, lvl FROM levels WHERE guild_id = '{ctx.guild.id}' and user_id = '{user.id}'")
     result = cursor.fetchone()
@@ -161,120 +183,57 @@ async def rank(ctx,user:discord.User=None):
     cursor.close()
     db.close()
   elif user is None:
-    db = sqlite3.connect('main.sqlite') 
+    db = sqlite3.connect('test.sqlite') 
     cursor = db.cursor()
     cursor.execute(f"SELECT user_id, exp, lvl FROM levels WHERE guild_id = '{ctx.guild.id}' and user_id = '{ctx.author.id}'")
     result = cursor.fetchone()
     if result is None:
-      await ctx.send("That user is not yet ranked")
+      await ctx.send("You didnt start lmao")
     else:
-      await ctx.send(f"{ctx.author.mention} is currently level `{str(result[2])}` and has  `{str(result[1])}` XP")
+      await ctx.send(f"{ctx.author.mention} are currently level `{str(result[2])}` and have  `{str(result[1])}` XP")
     cursor.close()
     db.close()   
 
 @client.command()
-async def top10(ctx):
-    db = sqlite3.connect('main.sqlite')
+async def leaderboard(ctx):
+    db = sqlite3.connect('test.sqlite')
     cursor = db.cursor()
-    cursor.execute(f"SELECT user_id, lvl, exp from levels WHERE guild_id = {ctx.guild.id} ORDER BY exp DESC LIMIT 5 ")
+    cursor.execute(f"SELECT user_id, lvl, exp from levels WHERE guild_id = {ctx.guild.id} ORDER BY lvl and exp DESC LIMIT 5 ")
     result = cursor.fetchall()
-    embed = discord.Embed(title="Leaderboards", colour=discord.Colour(0x6790a7))
+    embed = discord.Embed(title="Leaderboards", colour=discord.Colour.blue())
     for i, x in enumerate(result, 1):
-        embed.add_field(name=f"#{i}", value=f"<@{str(x[0])}> on Level {str(x[1])} with {str(x[2])} Total XP", inline=False)
+      embed.add_field(name=f"#{i}", value=f"<@{str(x[0])}> on Level {str(x[1])} with {str(x[2])} Total XP", inline=False)
     await ctx.send(embed=embed)
-    print(result)
     cursor.close()
     db.close()
-# @client.event
-# async def on_member_join(member):
-#     with open('users.json','r') as f:
-#         users = json.load(f)
 
-#     await update_data(users, member)
+@client.command()
+async def level(ctx):
+  db =sqlite3.connect("test.sqlite")
+  cursor = db.cursor()
+  cursor.execute(f"SELECT user_id, lvl from levels WHERE guild_id = {ctx.guild.id} and user_id = {ctx.user.id}")
+  result = cursor.fetchone()
+  if result is None:
+    await ctx.send("User didnt start")
+  else:
+    await ctx.send(f"{ctx.author.mention} you are on Level **{str(result[1])}**")
+  cursor.close()
+  db.close()
 
-#     with open('users.json','w') as f:
-#         json.dump(users,f)
+@client.command()
+async def xp(ctx):
+  db = sqlite3.connect("test.sqlite")
+  cursor = db.cursor()
+  cursor.execute(f"SELECT user_id, exp from levels WHERE guild_id = {ctx.guild.id} and user_id = {ctx.user.id}")
+  result = cursor.fetchone()
+  if result is None:
+    await ctx.send("User not started")
+  else:
+    await ctx.send(f"{ctx.author.mention} your current XP is **{str(result[0])}**")
+  cursor.close()
+  db.close()
 
-# @client.event
-# async def on_message(message):
-#     with open('users.json','r') as f:
-#         users = json.load(f)
-    
-#     await update_data(users, message.author)
-#     await add_experience(users, message.author, 5)
-#     await level_up(users, message.author, message.channel)
 
-#     with open('users.json','w') as f:
-#         json.dump(users,f)
-
-#     await client.process_commands(message)
-
-# async def update_data(users,user):
-#   if not str(user.id) in users:
-#       users[str(user.id)] = {}
-#       users[str(user.id)]['experience'] = 0
-#       users[str(user.id)]['level'] = 1
-    
-# async def add_experience(users, user, exp):
-#   users[str(user.id)]['experience'] += exp
-
-# async def level_up(users,user, channel):
-#   experience = users[str(user.id)]['experience']
-#   lvl_start = users[str(user.id)]['level']
-#   lvl_end = int(experience ** (1/4))
-
-#   if lvl_start < lvl_end:
-#       await channel.send(f'GG!! {user.mention} u have leveled up to **{lvl_end}**!')
-#       users[str(user.id)]['level'] = lvl_end
-
-# @client.command()
-# async def level(ctx, member: discord.Member = None):
-#   if not member:
-#     id = ctx.message.author.id
-#     with open('users.json', 'r') as f:
-#       users = json.load(f)
-#       lvl = users[str(id)]['level']
-#       await ctx.send(f'**{ctx.author.mention}** You are at level **{lvl}**!')
-#   else:
-#     id = member.id
-#     with open('users.json', 'r') as f:
-#       users = json.load(f)
-#       lvl = users[str(id)]['level']
-#       await ctx.send(f'{member.mention} is at level **{lvl}**!')
-
-# def get_top_experience():
-#   with open('users.json', 'r') as f:
-#     users = json.load(f)
-#   usersss = {}
-#   for i in users.keys():
-#     usersss[i] =  users[f'{i}']['experience']
-#   rank = sorted(usersss, key=usersss.get, reverse=True)
-#   return rank
-
-# # @client.command()
-# # async def rank(ctx):
-# #   rank = get_top_experience()
-# #   id = ctx.author.id
-# #   num_rank = rank.index(str(id))
-# #   await ctx.send(f'{ctx.author.mention} is at level {num_rank} and at rank')
-
-# @client.command()
-# async def rank(ctx, member: discord.Member = None):
-#   rank = get_top_experience()
-#   if not member:
-#     id = ctx.author.id
-#     with open('users.json', 'r') as f:
-#       users = json.load(f)
-#       lvl = users[str(id)]['level']
-#       num_rank = rank.index(str(id))
-#       await ctx.send(f'{ctx.author.mention} your rank is #**{num_rank + 1}**')
-#   else:
-#     id = member.id
-#     with open('users.json', 'r') as f:
-#       users = json.load(f)
-#       lvl = users[str(id)]['level']
-#       num_rank = rank.index(str(id))
-#       await ctx.send(f'{member.mention} is and at rank is #**{num_rank + 1}**!')
 @client.command()
 async def clear(ctx, amount=5):
   await ctx.channel.purge(limit=amount)
@@ -366,6 +325,9 @@ async def poll(ctx, *, message):
     await msg.add_reaction('👎')
 
 
+  
+
+
 @client.event
 async def on_raw_reaction_add(payload):
 
@@ -427,6 +389,34 @@ async def users(ctx):
     embed = discord.Embed(color=discord.Color.blue(), title=f"{ctx.guild.name}")
     embed.add_field(name="Total memebers in this server are ",value=f"{ctx.guild.member_count}")
     await ctx.send(embed=embed)
+
+@client.event
+async def on_command_error(ctx, error):
+  if isinstance(error, commands.CommandNotFound):
+    await ctx.send('Oops that command does not exist')
+
+@client.command()
+async def dm(ctx, member:discord.Member):
+  await ctx.send("what do you want to say")
+  def check(msg):
+    return msg.author.id == ctx.message.author.id
+
+  message = await client.wait_for('message',check=check)
+  await ctx.send(f'sent message to {member.mention}')
+
+  await member.send(f'{ctx.author.mention} Has a message for you:\n {message.content}')
+
+
+@client.command()
+async def quote(ctx):
+  results = requests.get("https://type.fit/api/quotes/").json()
+  num = random.randint(1,1500)
+  content = results[num]["text"]
+  embed = discord.Embed(color= discord.Color.blue())
+  embed.add_field(name="Quote:", value=f"*{content}*")
+
+  await ctx.send(embed=embed)
+  
 
 @client.command()
 async def help(ctx):
