@@ -9,12 +9,28 @@ import random
 import time
 import datetime
 import requests
+import youtube_dl
+import aiohttp
+import json
+from weather import *
 
+player1 = ""
+player2 = ""
+turn = ""
+gameOver = True
 
-client = commands.Bot(command_prefix = ">",intents=discord.Intents.all())
+#implement "if message.author != client.user" in exp system
+
+board = []
+
+api_key = "5e74111393bae2a5c24675da1604b841"
 
 cmds = ["Duh, Stop talking to me and get back to work.","Who the hell summoned me?! I am sleeping !!","Bruh, what do you want ?!","Hey sorry i was so mean !", "Heya whats up ?", "Hey handsome !", "Yo! Dude sup"]
 hello = ["hello","hi","hey","Hello","Hi","Hey"]
+
+client = commands.Bot(command_prefix = ">",intents=discord.Intents.all())
+
+command_prefix = "w."
 
 client.remove_command("help")
 
@@ -72,15 +88,7 @@ async def create(ctx, code, stime, duration):
           embed.add_field(name = "Duration: ", value = duration, inline = False)
           embed.add_field(name = "Link:", value = f"https://forestapp.cc/join-room?token={code}", inline = False)
           msg = await ctx.channel.send(embed=embed)
-          await msg.add_reaction("🌲")
-
-          # channel = client.get_channel(ctx.)
-          # message = await channel.fetch_message(msg)
-          # users = set()
-          # for reaction in message.reactions:
-          #   async for user in reaction.users():
-          #     users.add(user)
-          # print(f"users: {', '.join(user.name for user in users)}")
+          reaction = await msg.add_reaction("🌲")
           
 
           user = await client.fetch_user(ctx.message.author.id)
@@ -127,6 +135,17 @@ async def on_message(message):
     await message.channel.send(f"Awww...please use me..pls {message.author.mention}")
   if client.user.mentioned_in(message):
     await message.channel.send(random.choice(cmds))
+  if message.author != client.user and message.content.startswith(command_prefix):
+    location = message.content.replace("w.", "").lower()
+    if len(location) >= 1:
+      url = f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={api_key}&units=imperial"
+      try:
+        data = json.loads(requests.get(url).content)
+        data = parse_data(data)
+        await message.channel.send(embed=weather_message(data, location))
+      except KeyError:
+        await message.channel.send(embed=error_message(location))
+
   db = sqlite3.connect('test.sqlite') 
   cursor = db.cursor()
   cursor.execute(f"SELECT user_id FROM levels WHERE guild_id = '{message.guild.id}' and user_id = '{message.author.id}'")
@@ -283,39 +302,7 @@ async def div(ctx, num1, num2):
     await ctx.channel.send(f"{ctx.author.mention} The quotient is {div}")
   except:
     await ctx.channel.send(f"{ctx.author.mention} The format is <num1><num2>")
-  
-@client.event
-async def on_raw_reaction_add(payload):
-
-    if payload.member.bot:
-        pass
-
-    else:
-        with open('reactrole.json') as react_file:
-            data    = json.load(react_file)
-            for x in data:
-                if x['emoji'] == payload.emoji.id:
-                    role = discord.utils.get(client.get_guild(
-                        payload.guild_id).roles, id=x['role_id'])
-
-                    await payload.member.add_roles(role)
-
-
-@client.event
-async def on_raw_reaction_remove(payload):
-
-    with open('reactrole.json') as react_file:
-        data = json.load(react_file)
-        for x in data:
-            if x['emoji'] == payload.emoji.id:
-                role = discord.utils.get(client.get_guild(
-                    payload.guild_id).roles, id=x['role_id'])
-
-                
-                await client.get_guild(payload.guild_id).get_member(payload.user_id).remove_roles(role)
                     
-
-
 
 @client.command()
 async def poll(ctx, *, message):
@@ -324,58 +311,6 @@ async def poll(ctx, *, message):
     await msg.add_reaction('👍')
     await msg.add_reaction('👎')
 
-
-  
-
-
-@client.event
-async def on_raw_reaction_add(payload):
-
-    if payload.member.bot:
-        pass
-
-    else:
-        with open('reactrole.json') as react_file:
-            data = json.load(react_file)
-            for x in data:
-                if x['emoji'] == payload.emoji.id:
-                    role = discord.utils.get(client.get_guild(
-                        payload.guild_id).roles, id=x['role_id'])
-
-                    await payload.member.add_roles(role)
-
-@client.event
-async def on_raw_reaction_remove(payload):
-
-    with open('reactrole.json') as react_file:
-        data = json.load(react_file)
-        for x in data:
-            if x['emoji'] == payload.emoji.id:
-                role = discord.utils.get(client.get_guild(
-                    payload.guild_id).roles, id=x['role_id'])
-
-                
-                await client.get_guild(payload.guild_id).get_member(payload.user_id).remove_roles(role)
-                    
-@client.command()
-async def reactrole(ctx, emoji: discord.Emoji, role: discord.Role, *, message):
-
-    emb = discord.Embed(description=message)
-    msg = await ctx.channel.send(embed=emb)
-    await msg.add_reaction(emoji)
-
-    with open('reactrole.json') as json_file:
-        data = json.load(json_file)
-
-        new_react_role = {'role_name': role.name, 
-        'role_id': role.id,
-        'emoji': emoji.id,
-        'message_id': msg.id}
-
-        data.append(new_react_role)
-
-    with open('reactrole.json', 'w') as f:
-        json.dump(data, f, indent=4)
 
 @client.command(alias=['user','info'])
 @commands.has_permissions(kick_members=True)
@@ -390,10 +325,6 @@ async def users(ctx):
     embed.add_field(name="Total memebers in this server are ",value=f"{ctx.guild.member_count}")
     await ctx.send(embed=embed)
 
-@client.event
-async def on_command_error(ctx, error):
-  if isinstance(error, commands.CommandNotFound):
-    await ctx.send('Oops that command does not exist')
 
 @client.command()
 async def dm(ctx, member:discord.Member):
@@ -416,7 +347,207 @@ async def quote(ctx):
   embed.add_field(name="Quote:", value=f"*{content}*")
 
   await ctx.send(embed=embed)
-  
+
+@client.command(pass_context=True)
+async def meme(ctx):
+  embed = discord.Embed(color=discord.Color.blue())
+
+  async with aiohttp.ClientSession() as cs:
+    async with cs.get('https://www.reddit.com/r/dankmemes/new.json?sort=hot') as r:
+      res = await r.json()
+      embed.set_image(url=res['data']['children'] [random.randint(0, 100)]['data']['url'])
+      await ctx.send(embed=embed)
+
+
+@client.command()
+async def play(ctx, url : str):
+    song_there = os.path.isfile("song.mp3")
+    try:
+        if song_there:
+            os.remove("song.mp3")
+    except PermissionError:
+        await ctx.send("Wait for the current playing music to end or use the 'stop' command")
+        return
+
+    voiceChannel = discord.utils.get(ctx.guild.voice_channels, name='General')
+    await voiceChannel.connect()
+    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+    }
+    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+    for file in os.listdir("./"):
+        if file.endswith(".mp3"):
+            os.rename(file, "song.mp3")
+    voice.play(discord.FFmpegPCMAudio("song.mp3"))
+
+
+@client.command()
+async def leave(ctx):
+    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    if voice.is_connected():
+        await voice.disconnect()
+    else:
+        await ctx.send("The bot is not connected to a voice channel.")
+
+
+@client.command()
+async def pause(ctx):
+    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    if voice.is_playing():
+        voice.pause()
+    else:
+        await ctx.send("Currently no audio is playing.")
+
+
+@client.command()
+async def resume(ctx):
+    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    if voice.is_paused():
+        voice.resume()
+    else:
+        await ctx.send("The audio is not paused.")
+
+
+@client.command()
+async def stop(ctx):
+    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    voice.stop()
+
+player1 = ""
+player2 = ""
+turn = ""
+gameOver = True
+
+board = []
+
+winningConditions = [
+    [0, 1, 2],
+    [3, 4, 5],
+    [6, 7, 8],
+    [0, 3, 6],
+    [1, 4, 7],
+    [2, 5, 8],
+    [0, 4, 8],
+    [2, 4, 6]
+]
+
+@client.command()
+async def tictactoe(ctx, p1: discord.Member, p2: discord.Member):
+    global count
+    global player1
+    global player2
+    global turn
+    global gameOver
+
+    if gameOver:
+        global board
+        board = [":white_large_square:", ":white_large_square:", ":white_large_square:",
+                 ":white_large_square:", ":white_large_square:", ":white_large_square:",
+                 ":white_large_square:", ":white_large_square:", ":white_large_square:"]
+        turn = ""
+        gameOver = False
+        count = 0
+
+        player1 = p1
+        player2 = p2
+
+        # print the board
+        line = ""
+        for x in range(len(board)):
+            if x == 2 or x == 5 or x == 8:
+                line += " " + board[x]
+                await ctx.send(line)
+                line = ""
+            else:
+                line += " " + board[x]
+
+        # determine who goes first
+        num = random.randint(1, 2)
+        if num == 1:
+            turn = player1
+            await ctx.send("It is <@" + str(player1.id) + ">'s turn.")
+        elif num == 2:
+            turn = player2
+            await ctx.send("It is <@" + str(player2.id) + ">'s turn.")
+    else:
+        await ctx.send("A game is already in progress! Finish it before starting a new one.")
+
+@client.command()
+async def place(ctx, pos : int):
+  global turn
+  global player1
+  global player2
+  global board
+  global count
+
+  if not gameOver:
+    mark = ""
+    if turn == ctx.author:
+      if turn == player1:
+        mark = ":o2:"
+      elif turn == player2:
+        mark = ":regional_indicator_x:"
+      
+      if 0 < pos < 10 and board[pos - 1] == ":white_large_square:":
+        board[pos - 1] = mark
+        count += 1
+
+        line = ""
+        for x in range(len(board)):
+          if x == 2 or x == 5 or x == 8:
+            line += " " + board[x]
+            await ctx.send(line)
+            line = ""
+          else:
+            line += " " + board[x]
+        
+        checkWinner(winningConditions, mark)
+        if gameOver:
+          await ctx.send(f"{mark} wins!")
+        elif count >= 9:
+          await ctx.send("Its a tie!")
+
+        if turn == player1:
+          turn = player2
+        elif turn == player2:
+          turn = player1
+
+      else:
+        await ctx.send("**Lmao that space has been taken by your opponent**")
+    else:
+      await ctx.send("It is not your turn.")
+  else:
+    await ctx.send("Please start a new game using >tictactoe command.")
+
+def checkWinner(winningConditions, mark):
+  global gameOver
+  for condition in winningConditions:
+    if board[condition[0]] == mark and board[condition[1]] == mark and board[condition[2]] == mark:
+      gameOver = True
+
+@tictactoe.error
+async def tictactoe_error(ctx,error):
+  if isinstance(error, commands.MissingRequiredArgument):
+    await ctx.send("Please mention 2 players for this game.")
+  elif isinstance(error, commands.BadArgument):
+    await ctx.send("Please make sure to mention/ping players")
+
+
+
+@place.error
+async def place_error(ctx,error):
+  if isinstance(error, commands.MissingRequiredArgument):
+    await ctx.send("Please mention a position to mark")
+  elif isinstance(error, commands.BadArgument):
+    await ctx.send("Please make sure it is an integer")
 
 @client.command()
 async def help(ctx):
@@ -430,4 +561,4 @@ async def help(ctx):
   await ctx.send(embed=embed)
   
 
-client.run('TOKEN')
+client.run("TOKEN")
