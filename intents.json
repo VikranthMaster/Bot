@@ -1,0 +1,43 @@
+{"intents": [
+    {"tag": "greeting",
+    "pattern": ["Hi", "How are you", "Is anyone there?", "Hello", "Good day"],
+    "responses": ["Hello, thanks for visiting", "Good to see you again", "Hi there, how can I help?"],
+    "context_set": ""
+    },
+    {"tag": "goodbye",
+    "pattern": ["Bye", "See you later", "Goodbye"],
+    "responses": ["See you later, thanks for visiting", "Have a nice day", "Bye! Come back again soon."],
+    "context_set":""
+    },
+    {"tag": "thanks",
+    "pattern": ["Thanks", "Thank you", "That's helpful"],
+    "responses": ["Happy to help!", "Any time!", "My pleasure"],
+    "context_set":""
+    },
+    {"tag": "hours",
+    "pattern": ["What hours are you open?", "What are your hours?", "When are you open?" ],
+    "responses": ["We're open every day 9am-9pm", "Our hours are 9am-9pm every day"],
+    "context_set": ""
+    },
+    {"tag": "payments",
+    "pattern": ["Do you take credit cards?", "Do you accept Mastercard?", "Are you cash only?" ],
+    "responses": ["We accept VISA, Mastercard and AMEX", "We accept most major credit cards"],
+    "context_set": ""
+    },
+    {"tag": "opentoday",
+    "pattern": ["Are you open today?", "When do you open today?", "What are your hours today?"],
+    "responses": ["We're open every day from 9am-9pm", "Our hours are 9am-9pm every day"],
+    "context_set": ""
+    },
+    {"tag" : "What are you",
+    "pattern" : ["Who are you", "what are you","why are you"],
+    "responses" : ["I am an A.I bot","I am ready to chat with you when you are alone or need a friend"],
+    "context_set": ""
+    },
+    {"tag" : "Credits",
+    "pattern":["who made you","who created you","who is the creator who made you"],
+    "responses":["I am created by a 14-year boy","He is a smart guy","I am made by a smart person"],
+    "context_set": ""
+    }
+]
+}
