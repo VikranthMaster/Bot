@@ -16,6 +16,12 @@ import json
 import shutil
 from os import system
 import sys
+import nltk
+from nltk.stem.lancaster import LancasterStemmer
+stemmer = LancasterStemmer()
+import tensorflow
+import tflearn
+import numpy
 
 
 player1 = ""
@@ -59,16 +65,6 @@ async def on_ready():
     )
   ''')
 
-  db = sqlite3.connect("forest.sqlite")
-  cursor = db.cursor()
-  cursor.execute('''
-    CREATE TABLE IF NOT EXISTS forest(
-      guild_id TEXT,
-      user_id TEXT,
-      points TEXT
-    )
-  ''')
-  print("Database loaded")
   print("Bot is ready !")
   await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=">help"))
 
@@ -542,7 +538,7 @@ async def stop(ctx):
 
 queues = {}
 
-@client.command(pass_context=True, aliases=['q', 'que'])
+@client.command(pass_context=True, aliases=['que'])
 async def queue(ctx, url: str):
     Queue_infile = os.path.isdir("./Queue")
     if Queue_infile is False:
@@ -867,7 +863,139 @@ client.help_pages = [page1, page2, page3]
 
 @client.command()
 async def test(ctx):
-  buttons = ["",":arrow_left:"]
+  buttons = [u"\u23EA",u"\u25C0",u"\u25B6",u"\u23E9"]
+  current = 0
+  msg = await ctx.send(embed = client.help_pages[current])
+
+  for button in buttons:
+    await msg.add_reaction(button)
+  
+  while True:
+    try:
+      reaction, user = await client.wait_for("reaction_add", check=lambda reaction, user : user == ctx.author and reaction.emoji in buttons, timeout=60.0)
+    
+    except asyncio.TimeoutError:
+      embed = client.help_pages[current]
+      embed.set_footer(text="Timed Out.")
+      await msg.clear_reactions()
+
+    else:
+      previous_page = current
+
+      if reaction.emoji == u"\u23EA":
+        current = 0
+
+      elif reaction.emoji == u"\u25C0":
+        if current > 0:
+          current -= 1
+      
+      elif reaction.emoji == u"\u25B6":
+        if current < len(client.help_pages)-1:
+          current += 1
+        
+      elif reaction.emoji == u"\u23E9":
+        current = len(client.help_pages)-1
+      
+      for button in buttons:
+        await msg.remove_reaction(button, ctx.author)
+      
+      if current != previous_page:
+        await msg.edit(embed=client.help_pages[current])
+
+#------------------------------------------------------------------------------------------------------
+#Neural network codes
+with open("intents.json") as file:
+    data = json.load(file)
+
+
+
+words = []
+labels = []
+docs_x = []
+docs_y = []
+
+for intent in data["intents"]:
+    for pattern in intent["pattern"]:
+        wrds = nltk.word_tokenize(pattern)
+        words.extend(wrds)
+        docs_x.append(wrds)
+        docs_y.append(intent["tag"])
+
+    if intent["tag"] not in labels:
+        labels.append(intent["tag"])
+
+words = [stemmer.stem(w.lower()) for w in words if w != "?"]
+words = sorted(list(set(words)))
+
+labels = sorted(labels)
+
+training = []
+output = []
+
+out_empty = [0 for _ in range(len(labels))]
+
+for x, doc in enumerate(docs_x):
+    bag = []
+
+    wrds = [stemmer.stem(w.lower()) for w in doc]
+
+    for w in words:
+        if w in wrds:
+            bag.append(1)
+        else:
+            bag.append(0)
+
+    output_row = out_empty[:]
+    output_row[labels.index(docs_y[x])] = 1
+
+    training.append(bag)
+    output.append(output_row)
+
+
+training = numpy.array(training)
+output = numpy.array(output)
+
+net = tflearn.input_data(shape=[None, len(training[0])])
+net = tflearn.fully_connected(net, 8)
+net = tflearn.fully_connected(net, 8)
+net = tflearn.fully_connected(net, len(output[0]), activation="softmax")
+net = tflearn.regression(net)
+
+model = tflearn.DNN(net)
+
+model.fit(training, output, n_epoch=1000, batch_size=8, show_metric=True)
+model.save("model.tflearn")
+
+def bag_of_words(s, words):
+    bag = [0 for _ in range(len(words))]
+
+    s_words = nltk.word_tokenize(s)
+    s_words = [stemmer.stem(word.lower()) for word in s_words]
+
+    for se in s_words:
+        for i, w in enumerate(words):
+            if w == se:
+                bag[i] = 1
+            
+    return numpy.array(bag)
+
+@client.command(aliases=["q"])
+async def question(ctx, *, question):
+  inp = question
+  results = model.predict([bag_of_words(inp, words)])[0]
+  results_index = numpy.argmax(results)
+  tag = labels[results_index]
+
+  if results[results_index] > 0.7:
+    for tg in data["intents"]:
+      if tg['tag'] == tag:
+        responses = tg['responses']
+
+    await ctx.send(f"```{random.choice(responses)}```")
+  else:
+    print("Sorry bro u didnt train the model for this")
+
+
 
 @client.command()
 async def help(ctx):
@@ -881,4 +1009,4 @@ async def help(ctx):
   await ctx.send(embed=embed)
   
 
-client.run("TOKEN") 
+client.run("TOKEN")
