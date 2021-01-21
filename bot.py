@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands, timers
+from discord.ext import commands
 from discord.utils import get
 from discord import DMChannel
 import os
@@ -15,6 +15,7 @@ import aiohttp
 import json
 import shutil
 from os import system
+import sys
 
 
 player1 = ""
@@ -70,6 +71,16 @@ async def on_ready():
   print("Database loaded")
   print("Bot is ready !")
   await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=">help"))
+
+# initial_extensions = ["cogs.maths"]
+
+# if __name__ == "__main__":
+#   for extension in initial_extensions:
+#     try:
+#       bot.load_extension(extension)
+#     except Exception as e:
+#       print("Failed to load {extension}", file=sys.stderr)
+#       traceback.print_exc()
 
 
 @client.command()
@@ -287,52 +298,6 @@ async def xp(ctx):
 async def clear(ctx, amount=5):
   await ctx.channel.purge(limit=amount)
 
-def sum(x,y):
-  return int(x) + int(y)
-
-@client.command()
-async def add(ctx, num1, num2):
-  sum = sum(int(num1), int(num2))
-  try:
-    await ctx.channel.send(f"{ctx.author.mention} The sum is {sum}")
-  except:
-    await ctx.channel.send(f"{ctx.author.mention} The format is <num1><num2>")
-  
-def diff(x,y):
-  return int(x) - int(y)
-
-@client.command()
-async def subtract(ctx, num1, num2):
-  diff = diff(int(num1), int(num2))
-  try:
-    await ctx.channel.send(f"{ctx.author.mention} The difference is {diff}")
-  except:
-    await ctx.channel.send(f"{ctx.author.mention} The format is <num1><num2>")
-
-def product(x,y):
-  return int(x) * int(y)
-
-@client.command()
-async def multiply(ctx, num1, num2):
-  mult = product(int(num1), int(num2))
-  try:
-    await ctx.channel.send(f"{ctx.author.mention} The product is {mult}")
-  except:
-    await ctx.channel.send(f"{ctx.author.mention} The format is <num1><num2>")
-
-def quotient(x,y):
-  return int(x) / int(y)
-
-
-
-@client.command()
-async def div(ctx, num1, num2):
-  div = quotient(int(num1), int(num2))
-  try:
-    await ctx.channel.send(f"{ctx.author.mention} The quotient is {div}")
-  except:
-    await ctx.channel.send(f"{ctx.author.mention} The format is <num1><num2>")
-                    
 
 @client.command()
 async def poll(ctx, *, message):
@@ -385,7 +350,7 @@ async def meme(ctx):
   async with aiohttp.ClientSession() as cs:
     async with cs.get('https://www.reddit.com/r/dankmemes/new.json?sort=hot') as r:
       res = await r.json()
-      embed.set_image(url=res['data']['children'] [random.randint(0, 100)]['data']['url'])
+      embed.set_image(url=res['data']['children'] [random.randint(0, 30)]['data']['url'])
       await ctx.send(embed=embed)
 
 
@@ -760,19 +725,149 @@ async def place_error(ctx,error):
   elif isinstance(error, commands.BadArgument):
     await ctx.send("Please make sure it is an integer")
 
-@client.command()
-async def test(ctx):
-  width = 9
-  height = 9
-  grid = ""
-  i = int(0)
-  for i in range(width):
-    grid+=(":white_large_square:")
-  for i in range(height):
-    await ctx.send(grid)
-  
+# @client.command()
+# async def test(ctx,member:discord.Member=None):
+
   
 
+  # width = 10
+  # height = 10
+  # grid = ""
+  # something = 14
+  # i = int(0)
+  # for i in range(width):
+  #   grid+=(":white_large_square:")
+  # for i in grid:
+  #   await ctx.send(":green_square:")
+  # for i in range(height):
+  #   await ctx.send(grid)
+
+  
+  # def check(msg):
+  #   return msg.author.id == ctx.message.author.id
+
+  # message = await client.wait_for('message',check=check)
+  # await ctx.send(f'OK {member.mention}')
+
+ 
+@client.command(aliases=["balance","b"])
+async def bal(ctx):
+	await open_account(ctx.author)
+	user = ctx.author
+	users = await get_bank_data()
+
+	wallet_amt = users[str(user.id)]["wallet"]
+	bank_amt = users[str(user.id)]["bank"]
+
+	em = discord.Embed(title = f"{ctx.author.name}'s Balance",color=discord.Color.blue())
+	em.add_field(name = "Wallet", value= wallet_amt, inline=False)
+	em.add_field(name = "Bank", value=bank_amt, inline=False)
+	await ctx.send(embed =em)
+
+@client.command()
+async def beg(ctx):
+	await open_account(ctx.author)
+	users = await get_bank_data()
+
+	user = ctx.author
+	
+	earnings = random.randrange(101)
+
+	await ctx.send(f"Someone gave you {earnings} coins!")
+
+	users[str(user.id)]["wallet"] += earnings
+
+	with open("money.json","w") as f:
+		json.dump(users, f)
+
+@client.command(aliases=["dep"])
+async def deposit(ctx, amount = None):
+  await open_account(ctx.author)
+
+  if amount == None:
+    await ctx.send(f"Please enter the amount to withdraw")
+    return
+  
+  bal = await update_bank(ctx.author)
+
+  amount = int(amount)
+  if amount > bal[0]:
+    await ctx.send(f"You dont have that much money")
+    return
+  
+  if amount < 0:
+    await ctx.send(f"Amount must be positive!")
+    return
+  
+  await update_bank(ctx.author, -1*amount)
+  await update_bank(ctx.author, amount, "bank")
+
+  await ctx.send(f"You deposited {amount} coins")
+
+@client.command(alias=["draw"])
+async def withdraw(ctx, amount = None):
+  await open_account(ctx.author)
+
+  if amount == None:
+    await ctx.send(f"Please enter the amount to withdraw")
+    return
+  
+  bal = await update_bank(ctx.author)
+
+  amount = int(amount)
+  if amount > bal[1]:
+    await ctx.send(f"You dont have that much money")
+    return
+  
+  if amount < 0:
+    await ctx.send(f"Amount must be positive!")
+    return
+  
+  await update_bank(ctx.author, amount)
+  await update_bank(ctx.author, -1*amount, "bank")
+
+  await ctx.send(f"You withdrew {amount} coins")
+
+async def open_account(user):
+	users = await get_bank_data()
+
+	if str(user.id) in users:
+		return False
+	else:
+		users[str(user.id)] = {}
+		users[str(user.id)]["wallet"] = 0
+		users[str(user.id)]["bank"] = 0
+
+	with open("money.json","w") as f:
+		json.dump(users, f)
+	return True
+
+async def get_bank_data():
+	with open("money.json","r") as f:
+		users = json.load(f)
+
+	return users
+
+async def update_bank(user,change=0, mode="wallet"):
+  users = await get_bank_data()
+
+  users[str(user.id)][mode] += change
+
+  with open("money.json","w") as f:
+    json.dump(users, f)
+  
+  bal = [users[str(user.id)]["wallet"],users[str(user.id)]["bank"]]
+  return user
+
+page1 = discord.Embed(title="Bot help 1", description="Page1", colour = discord.Color.blue())
+page2 = discord.Embed(title="Bot help 2", description="Page2", colour = discord.Color.blue())
+page3 = discord.Embed(title="Bot help 3", description="Page3", colour = discord.Color.blue())
+
+client.help_pages = [page1, page2, page3]
+
+@client.command()
+async def test(ctx):
+  buttons = ["",":arrow_left:"]
 
 @client.command()
 async def help(ctx):
@@ -786,5 +881,4 @@ async def help(ctx):
   await ctx.send(embed=embed)
   
 
-client.run("TOKEN")
-
+client.run("TOKEN") 
