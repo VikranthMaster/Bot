@@ -23,6 +23,11 @@ import tensorflow
 import tflearn
 import numpy
 
+def get_prefix(bot,message):
+  db = sqlite3.connect("test.sqlite")
+  cursor = db.cursor()
+  prefix = cursor.execute("SELECT Prefix FROM guilds WHERE GuildID = ?", message.guild.id)
+  return prefix
 
 player1 = ""
 player2 = ""
@@ -36,9 +41,8 @@ board = []
 api_key = "5e74111393bae2a5c24675da1604b841"
 
 cmds = ["Duh, Stop talking to me and get back to work.","Who the hell summoned me?! I am sleeping !!","Bruh, what do you want ?!","Hey sorry i was so mean !", "Heya whats up ?", "Hey handsome !", "Yo! Dude sup"]
-hello = ["hello","hi","hey","Hello","Hi","Hey"]
 
-client = commands.Bot(command_prefix = ">",intents=discord.Intents.all())
+client = commands.Bot(command_prefix = get_prefix ,intents=discord.Intents.all())
 
 command_prefix = "w."
 
@@ -65,6 +69,13 @@ async def on_ready():
     )
   ''')
 
+  cursor.execute('''
+    CREATE TABLE IF NOT EXISTS guilds(
+      GuildID integer PrimaryKey,
+      Prefix text DEFAULT ">"
+    )
+  ''')
+  print("Database Loaded")
   print("Bot is ready !")
   await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=">help"))
 
@@ -78,6 +89,18 @@ async def on_ready():
 #       print("Failed to load {extension}", file=sys.stderr)
 #       traceback.print_exc()
 
+@client.command()
+async def change_prefix(ctx, new:str):
+  db = sqlite3.connect("test.sqlite")
+  cursor = db.cursor()
+  if len(new) > 5:
+    await ctx.send("Prefix cant be longer than 5")
+  else:
+    cursor.execute("UPDATE guilds SET Prefix = ?", new, ctx.guild.id)
+    await ctx.send('Prefix changed to {new}')
+  db.commit()
+  cursor.close()
+  db.close()
 
 @client.command()
 async def hello(ctx):
